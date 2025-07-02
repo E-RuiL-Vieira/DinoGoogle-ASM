@@ -353,32 +353,35 @@ end_update_obstacles:
 ; ============================================================================
 
 check_collisions:
-    push r0
-    push r1
-    push r2
-    load r0, dino_y             ; Carrega altura do dinossauro em r0
-    loadn r1, #27               ; Carrega linha 27 em r1 (chão)
-    cmp r0, r1                  ; Compara altura com linha do chão
-    jne end_check_collisions    ; Salta para fim se não está no chão
-    load r0, obstacle_active    ; Carrega flag de obstáculo ativo em r0
-    loadn r1, #0                ; Carrega valor 0 em r1
-    cmp r0, r1                  ; Compara flag com 0 (inativo)
-    jeq end_check_collisions    ; Salta para fim se obstáculo inativo
-    load r0, obstacle_x         ; Carrega posição X do obstáculo em r0
-    loadn r1, #9                ; Carrega limite inferior em r1
-    cmp r0, r1                  ; Compara posição X com limite inferior
-    jle end_check_collisions    ; Salta para fim se passou do dinossauro
-    loadn r1, #12               ; Carrega limite superior em r1
-    cmp r0, r1                  ; Compara posição X com limite superior
-    jgr end_check_collisions    ; Salta para fim se ainda distante
-    loadn r0, #1                ; Carrega valor 1 em r0
-    store game_over, r0         ; Define jogo como terminado por colisão
+    push r0                     ; Salva r0 na pilha
+    push r1                     ; Salva r1 na pilha
+
+    ; 1. O dinossauro está no chão?
+    load r0, dino_y             ; Carrega a coordenada Y (linha) do dinossauro
+    loadn r1, #27               ; Carrega o valor da linha do chão (27)
+    cmp r0, r1                  ; Compara a posição do dinossauro com a do chão
+    jne end_check_collisions    ; Se não estiver no chão (r0 != r1), salta para o fim
+
+    ; 2. Existe um obstáculo ativo na tela?
+    load r0, obstacle_active    ; Carrega a flag que indica se o obstáculo está ativo
+    loadn r1, #0                ; Carrega 0 para comparação
+    cmp r0, r1                  ; Compara se a flag é 0 (inativo)
+    jeq end_check_collisions    ; Se estiver inativo (r0 == r1), salta para o fim
+
+    ; 3. O obstáculo está na mesma coluna do dinossauro?
+    load r0, obstacle_x         ; Carrega a coordenada X (coluna) do obstáculo
+    loadn r1, #10               ; Carrega a coordenada X fixa do dinossauro
+    cmp r0, r1                  ; Compara a posição de ambos
+    jne end_check_collisions    ; Se não estiverem na mesma coluna, salta para o fim
+
+    ; Se o código chegou até aqui, todas as condições são verdadeiras: COLISÃO!
+    loadn r0, #1                ; Carrega 1 (verdadeiro) em r0
+    store game_over, r0         ; Atualiza a variável game_over, terminando o jogo
 
 end_check_collisions:
-    pop r2
-    pop r1
-    pop r0
-    rts
+    pop r1                      ; Restaura r1 da pilha
+    pop r0                      ; Restaura r0 da pilha
+    rts                         ; Retorna da função
 
 ; ============================================================================
 ; FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO
