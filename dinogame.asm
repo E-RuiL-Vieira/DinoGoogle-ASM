@@ -1,176 +1,193 @@
 ; ============================================================================
 ; JOGO DO DINOSSAURO PARA PROCESSADOR RISC 16-BIT
-; ============================================================================
-; Este programa implementa um jogo estilo "dinossauro do Chrome" para um
-; processador RISC de 16 bits com 8 registradores (r0-r7).
-; O objetivo é sobreviver por 99 segundos pulando sobre obstáculos.
-; A velocidade aumenta a cada 20 segundos, de 1 até 5.
-; ============================================================================
-
-jmp main                        ; Salta para o início do programa principal
-
-; ============================================================================
-; DECLARAÇÃO DE VARIÁVEIS DO JOGO
+; ----------------------------------------------------------------------------
+; Tela: 40 colunas × 24 linhas (0–959)
+; Linha 21: dinossauro e obstáculos
+; Linha 22: chão (cheio de '=')
+; Velocidade de obstáculos 1→5 a cada 20s
+; Três obstáculos independentes (60,90,120 frames)
+; Reset a qualquer momento com 'r'
 ; ============================================================================
 
-; --- Variáveis do Dinossauro ---
-dino_pos: var #1                ; Posição absoluta do dinossauro na tela
-dino_y: var #1                  ; Coordenada Y (linha) do dinossauro
-dino_jumping: var #1            ; Flag: 1 = pulando, 0 = no chão
-dino_jump_count: var #1         ; Contador de frames do pulo
+jmp main                                        ; inicia o programa
 
-; --- Variáveis dos Obstáculos ---
-obstacle_x: var #1              ; Posição horizontal do obstáculo
-obstacle_active: var #1         ; Flag: 1 = obstáculo ativo, 0 = inativo
-obstacle_timer: var #1          ; Contador para criação de novos obstáculos
-obstacle_speed: var #1          ; Velocidade de movimento do obstáculo
+; ============================================================================
+; VARIÁVEIS
+; ============================================================================
 
-; --- Variáveis do Sistema de Jogo ---
-timer_seconds: var #1           ; Contador de segundos transcorridos
-timer_frames: var #1            ; Contador de frames para calcular segundos
-game_over: var #1               ; Flag: 1 = jogo terminou, 0 = jogando
-game_won: var #1                ; Flag: 1 = jogador venceu, 0 = jogando
-game_start_delay: var #1        ; Contador de atraso inicial
+dino_pos:         var #1    ; posição absoluta do dinossauro (linha×40+coluna)
+dino_y:           var #1    ; linha atual do dinossauro
+dino_jumping:     var #1    ; 1=pulando, 0=chão
+dino_jump_count:  var #1    ; conta frames do pulo
+
+obstacle_x1:      var #1    ; coluna do obstáculo 1
+obstacle_x2:      var #1    ; coluna do obstáculo 2
+obstacle_x3:      var #1    ; coluna do obstáculo 3
+obstacle_active1: var #1    ; 1=ativo, 0=inativo
+obstacle_active2: var #1
+obstacle_active3: var #1
+obstacle_timer1:  var #1    ; frames até novo obstáculo 1
+obstacle_timer2:  var #1    ; frames até novo obstáculo 2
+obstacle_timer3:  var #1    ; frames até novo obstáculo 3
+obstacle_speed:   var #1    ; velocidade atual (1–5)
+
+timer_seconds:    var #1    ; segundos jogados
+timer_frames:     var #1    ; frames contados para 1s
+game_over:        var #1    ; 1=colidiu
+game_won:         var #1    ; 1=99s atingidos
+game_start_delay: var #1    ; frames de “PREPARE-SE”
 
 ; ============================================================================
 ; INICIALIZAÇÕES ESTÁTICAS
 ; ============================================================================
 
-static dino_pos + #0, #1090     ; Define posição inicial: linha 27, coluna 10
-static dino_y + #0, #27         ; Define linha inicial do dinossauro
-static dino_jumping + #0, #0    ; Define estado inicial: não pulando
-static dino_jump_count + #0, #0 ; Define contador de pulo inicial
-static obstacle_x + #0, #0      ; Define posição inicial do obstáculo
-static obstacle_active + #0, #0 ; Define estado inicial: obstáculo inativo
-static obstacle_timer + #0, #0  ; Define timer inicial de obstáculos
-static obstacle_speed + #0, #1  ; Define velocidade inicial
-static timer_seconds + #0, #0   ; Define tempo inicial: 0 segundos
-static timer_frames + #0, #0    ; Define contador de frames inicial
-static game_over + #0, #0       ; Define estado inicial: jogo não terminou
-static game_won + #0, #0        ; Define estado inicial: jogador não venceu
-static game_start_delay + #0, #20 ; Define atraso inicial de 20 frames
+static dino_pos         + #0, #850   ; 21×40+10
+static dino_y           + #0, #21
+static dino_jumping     + #0, #0
+static dino_jump_count  + #0, #0
+
+static obstacle_x1      + #0, #0
+static obstacle_x2      + #0, #0
+static obstacle_x3      + #0, #0
+static obstacle_active1 + #0, #0
+static obstacle_active2 + #0, #0
+static obstacle_active3 + #0, #0
+static obstacle_timer1  + #0, #0
+static obstacle_timer2  + #0, #0
+static obstacle_timer3  + #0, #0
+static obstacle_speed   + #0, #1
+
+static timer_seconds    + #0, #0
+static timer_frames     + #0, #0
+static game_over        + #0, #0
+static game_won         + #0, #0
+static game_start_delay + #0, #20
 
 ; ============================================================================
-; DECLARAÇÃO DE STRINGS
+; STRINGS
 ; ============================================================================
 
-dino_char: string "D"           ; Caractere que representa o dinossauro
-obstacle_char: string "|"       ; Caractere que representa obstáculos
-ground_char: string "="         ; Caractere que representa o chão
-space_char: string " "          ; Caractere espaço para limpar tela
-game_over_msg: string "GAME OVER" ; Mensagem de fim de jogo
-game_won_msg: string "VITORIA!" ; Mensagem de vitória
-timer_msg: string "TEMPO: "     ; Texto do contador de tempo
-prepare_msg: string "PREPARE-SE" ; Mensagem de preparação inicial
+dino_char:      string "D"
+obstacle_char:  string "|"
+ground_char:    string "="
+space_char:     string " "
+game_over_msg:  string "GAME OVER"
+game_won_msg:   string "VITORIA!"
+timer_msg:      string "TEMPO: "
+prepare_msg:    string "PREPARE-SE"
 
 ; ============================================================================
-; PROGRAMA PRINCIPAL
+; INÍCIO DO PROGRAMA
 ; ============================================================================
 
 main:
-    call init_game              ; Chama função de inicialização do jogo
+    call init_game
 
 game_loop:
-    call clear_screen           ; Chama função para limpar toda a tela
-    call handle_input           ; Chama função para processar entrada do teclado
-    call update_game            ; Chama função para atualizar lógica do jogo
-    call render_game            ; Chama função para desenhar elementos na tela
-    call delay                  ; Chama função para controlar velocidade do jogo
-    load r0, game_over          ; Carrega flag de game over no registrador r0
-    loadn r1, #1                ; Carrega valor 1 no registrador r1
-    cmp r0, r1                  ; Compara r0 com r1 (game_over == 1?)
-    jeq game_over_screen        ; Salta para tela de game over se igual
-    load r0, game_won           ; Carrega flag de vitória no registrador r0
-    loadn r1, #1                ; Carrega valor 1 no registrador r1
-    cmp r0, r1                  ; Compara r0 com r1 (game_won == 1?)
-    jeq game_won_screen         ; Salta para tela de vitória se igual
-    jmp game_loop               ; Salta de volta para o início do loop principal
+    call clear_screen
+    call handle_input
+    call update_game
+    call render_game
+    call delay
+    load  r0, game_over
+    loadn r1, #1
+    cmp   r0, r1
+    jeq   game_over_screen
+    load  r0, game_won
+    cmp   r0, r1
+    jeq   game_won_screen
+    jmp   game_loop
 
 game_over_screen:
-    call clear_screen           ; Chama função para limpar a tela
-    call draw_game_over         ; Chama função para desenhar mensagem de game over
-    call input_wait             ; Chama função para esperar entrada do usuário
-    loadn r1, #'r'              ; Carrega código ASCII da tecla 'r' em r1
-    cmp r0, r1                  ; Compara tecla pressionada com 'r'
-    jeq restart_game            ; Salta para reiniciar se pressionou 'r'
-    jmp game_over_screen        ; Salta de volta para tela de game over
+    call clear_screen
+    call draw_game_over
+    call input_wait
+    loadn r1, #'r'
+    cmp   r0, r1
+    jeq   restart_game
+    jmp   game_over_screen
 
 game_won_screen:
-    call clear_screen           ; Chama função para limpar a tela
-    call draw_game_won          ; Chama função para desenhar mensagem de vitória
-    call input_wait             ; Chama função para esperar entrada do usuário
-    loadn r1, #'r'              ; Carrega código ASCII da tecla 'r' em r1
-    cmp r0, r1                  ; Compara tecla pressionada com 'r'
-    jeq restart_game            ; Salta para reiniciar se pressionou 'r'
-    jmp game_won_screen         ; Salta de volta para tela de vitória
+    call clear_screen
+    call draw_game_won
+    call input_wait
+    loadn r1, #'r'
+    cmp   r0, r1
+    jeq   restart_game
+    jmp   game_won_screen
 
 restart_game:
-    call init_game              ; Chama função para reinicializar todas as variáveis
-    jmp game_loop               ; Salta para o loop principal do jogo
+    call init_game
+    jmp  game_loop
 
 ; ============================================================================
-; FUNÇÃO DE INICIALIZAÇÃO DO JOGO
+; INICIALIZAÇÃO
 ; ============================================================================
 
 init_game:
     push r0
     push r1
-    loadn r0, #1090             ; Carrega posição inicial em r0
-    store dino_pos, r0          ; Armazena posição inicial na variável dino_pos
-    loadn r0, #27               ; Carrega linha inicial em r0
-    store dino_y, r0            ; Armazena linha inicial na variável dino_y
-    loadn r0, #0                ; Carrega valor 0 em r0
-    store dino_jumping, r0      ; Define dinossauro como não pulando
-    store dino_jump_count, r0   ; Zera contador de pulo
-    store obstacle_x, r0        ; Zera posição X do obstáculo
-    store obstacle_active, r0   ; Define obstáculo como inativo
-    store obstacle_timer, r0    ; Zera timer de obstáculos
-    loadn r1, #1                ; Carrega velocidade inicial em r1
-    store obstacle_speed, r1    ; Define velocidade inicial do obstáculo
-    store timer_seconds, r0     ; Zera contador de segundos
-    store timer_frames, r0      ; Zera contador de frames
-    store game_over, r0         ; Define jogo como não terminado
-    store game_won, r0          ; Define jogador como não vencedor
-    loadn r0, #20               ; Carrega atraso inicial em r0
-    store game_start_delay, r0  ; Define atraso inicial
-    call draw_ground            ; Chama função para desenhar o chão
-    pop r1
-    pop r0
+    loadn r0, #850
+    store dino_pos, r0
+    loadn r0, #21
+    store dino_y, r0
+    loadn r0, #0
+    store dino_jumping, r0
+    store dino_jump_count, r0
+    store obstacle_x1, r0
+    store obstacle_x2, r0
+    store obstacle_x3, r0
+    store obstacle_active1, r0
+    store obstacle_active2, r0
+    store obstacle_active3, r0
+    store obstacle_timer1, r0
+    store obstacle_timer2, r0
+    store obstacle_timer3, r0
+    loadn r1, #1
+    store obstacle_speed, r1
+    store timer_seconds, r0
+    store timer_frames, r0
+    store game_over, r0
+    store game_won, r0
+    loadn r0, #20
+    store game_start_delay, r0
+    call draw_ground
+    pop  r1
+    pop  r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE TRATAMENTO DE ENTRADA DO TECLADO
+; TRATAMENTO DE ENTRADA
 ; ============================================================================
 
 handle_input:
     push r0
     push r1
-    inchar r0                   ; Lê caractere do teclado para r0
-    loadn r1, #255              ; Carrega código "nenhuma tecla" em r1
-    cmp r0, r1                  ; Compara tecla lida com código "nenhuma tecla"
-    jeq end_handle_input        ; Salta para fim se nenhuma tecla pressionada
-    loadn r1, #' '              ; Carrega código ASCII da tecla espaço em r1
-    cmp r0, r1                  ; Compara tecla lida com espaço
-    jeq start_jump              ; Salta para iniciar pulo se espaço
-    loadn r1, #'r'              ; Carrega código ASCII da tecla 'r' em r1
-    cmp r0, r1                  ; Compara tecla lida com 'r'
-    jeq reset_in_game           ; Salta para reset se 'r'
-    jmp end_handle_input        ; Salta para fim se outra tecla
+    inchar r0                   ; lê teclado
+    loadn r1, #255
+    cmp   r0, r1
+    jeq   end_handle_input
+    loadn r1, #' '
+    cmp   r0, r1
+    jeq   start_jump
+    loadn r1, #'r'
+    cmp   r0, r1
+    jeq   reset_in_game
+    jmp   end_handle_input
 
 start_jump:
-    load r0, dino_jumping       ; Carrega estado de pulo em r0
-    loadn r1, #0                ; Carrega valor 0 em r1
-    cmp r0, r1                  ; Compara estado atual com 0 (não pulando)
-    jne end_handle_input        ; Salta para fim se já está pulando
-    loadn r0, #1                ; Carrega valor 1 em r0
-    store dino_jumping, r0      ; Define dinossauro como pulando
-    loadn r0, #0                ; Carrega valor 0 em r0
-    store dino_jump_count, r0   ; Zera contador de frames do pulo
-    jmp end_handle_input        ; Salta para fim da função
+    load  r0, dino_jumping
+    loadn r1, #0
+    cmp   r0, r1
+    jne   end_handle_input
+    loadn r0, #1
+    store dino_jumping, r0
+    loadn r0, #0
+    store dino_jump_count, r0
+    jmp   end_handle_input
 
 reset_in_game:
-    call init_game              ; Chama função de inicialização
-    jmp end_handle_input        ; Salta para fim da função
+    call init_game
 
 end_handle_input:
     pop r1
@@ -178,34 +195,34 @@ end_handle_input:
     rts
 
 ; ============================================================================
-; FUNÇÃO PRINCIPAL DE ATUALIZAÇÃO DO JOGO
+; LÓGICA DO JOGO
 ; ============================================================================
 
 update_game:
     push r0
     push r1
-    load r0, game_start_delay   ; Carrega contador de atraso em r0
-    loadn r1, #0                ; Carrega valor 0 em r1
-    cmp r0, r1                  ; Compara atraso com 0
-    jeq update_game_normal      ; Salta para atualização normal se zero
-    dec r0                      ; Decrementa contador de atraso
-    store game_start_delay, r0  ; Armazena novo valor de atraso
-    jmp end_update_game         ; Salta para fim da função
+    load  r0, game_start_delay
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   update_game_normal
+    dec   r0
+    store game_start_delay, r0
+    jmp   end_update_game
 
 update_game_normal:
-    call update_timer_with_speed ; Chama função de atualização do timer
-    load r0, timer_seconds      ; Carrega segundos transcorridos em r0
-    loadn r1, #99               ; Carrega valor 99 em r1
-    cmp r0, r1                  ; Compara segundos com 99
-    jne continue_game           ; Salta para continuar se não igual
-    loadn r0, #1                ; Carrega valor 1 em r0
-    store game_won, r0          ; Define jogador como vencedor
-    jmp end_update_game         ; Salta para fim da função
+    call update_timer_with_speed
+    load  r0, timer_seconds
+    loadn r1, #99
+    cmp   r0, r1
+    jne   continue_game
+    loadn r0, #1
+    store game_won, r0
+    jmp   end_update_game
 
 continue_game:
-    call update_dino_jump       ; Chama função de atualização do pulo
-    call update_obstacles       ; Chama função de atualização dos obstáculos
-    call check_collisions       ; Chama função de detecção de colisões
+    call update_dino_jump
+    call update_obstacles
+    call check_collisions
 
 end_update_game:
     pop r1
@@ -213,37 +230,35 @@ end_update_game:
     rts
 
 ; ============================================================================
-; FUNÇÃO DE ATUALIZAÇÃO DO TIMER COM SISTEMA DE VELOCIDADE
+; TIMER + VELOCIDADE
 ; ============================================================================
 
 update_timer_with_speed:
     push r0
     push r1
     push r2
-    load r0, timer_frames       ; Carrega contador de frames em r0
-    inc r0                      ; Incrementa contador de frames
-    store timer_frames, r0      ; Armazena novo valor de frames
-    loadn r1, #15               ; Carrega valor 15 em r1 (frames por segundo)
-    cmp r0, r1                  ; Compara frames com 15
-    jne end_update_timer_with_speed ; Salta para fim se não completou 1 segundo
-    loadn r0, #0                ; Carrega valor 0 em r0
-    store timer_frames, r0      ; Zera contador de frames
-    load r0, timer_seconds      ; Carrega contador de segundos em r0
-    inc r0                      ; Incrementa contador de segundos
-    store timer_seconds, r0     ; Armazena novo valor de segundos
-    ; Velocidade aumenta a cada 20 segundos
-    loadn r1, #20               ; Carrega valor 20 em r1
-    mod r2, r0, r1              ; Calcula resto da divisão por 20
-    loadn r1, #0                ; Carrega valor 0 em r1
-    cmp r2, r1                  ; Compara resto com 0
-    jne end_update_timer_with_speed ; Salta para fim se não é múltiplo de 20
-    ; Velocidade máxima é 5
-    load r1, obstacle_speed     ; Carrega velocidade atual em r1
-    loadn r2, #5                ; Carrega velocidade máxima em r2
-    cmp r1, r2                  ; Compara velocidade atual com máxima
-    jeg end_update_timer_with_speed ; Salta para fim se já no máximo
-    inc r1                      ; Incrementa velocidade
-    store obstacle_speed, r1    ; Armazena nova velocidade
+    load  r0, timer_frames
+    inc   r0
+    store timer_frames, r0
+    loadn r1, #15               ; 15 frames = 1s
+    cmp   r0, r1
+    jne   end_update_timer_with_speed
+    loadn r0, #0
+    store timer_frames, r0
+    load  r0, timer_seconds
+    inc   r0
+    store timer_seconds, r0
+    loadn r1, #20               ; a cada 20s
+    mod   r2, r0, r1
+    loadn r1, #0
+    cmp   r2, r1
+    jne   end_update_timer_with_speed
+    load  r1, obstacle_speed
+    loadn r2, #5
+    cmp   r1, r2
+    jeg   end_update_timer_with_speed
+    inc   r1
+    store obstacle_speed, r1
 
 end_update_timer_with_speed:
     pop r2
@@ -252,47 +267,47 @@ end_update_timer_with_speed:
     rts
 
 ; ============================================================================
-; FUNÇÃO DE ATUALIZAÇÃO DO PULO DO DINOSSAURO
+; PULO
 ; ============================================================================
 
 update_dino_jump:
     push r0
     push r1
     push r2
-    load r0, dino_jumping       ; Carrega estado de pulo em r0
-    loadn r1, #0                ; Carrega valor 0 em r1
-    cmp r0, r1                  ; Compara estado com 0 (não pulando)
-    jeq end_update_dino_jump    ; Salta para fim se não está pulando
-    load r0, dino_jump_count    ; Carrega contador de pulo em r0
-    inc r0                      ; Incrementa contador de pulo
-    store dino_jump_count, r0   ; Armazena novo valor do contador
-    loadn r1, #6                ; Carrega valor 6 em r1 (fim da subida)
-    cmp r0, r1                  ; Compara contador com 6
-    jle dino_going_up           ; Salta para subida se menor ou igual
-    loadn r1, #12               ; Carrega valor 12 em r1 (fim da descida)
-    cmp r0, r1                  ; Compara contador com 12
-    jle dino_going_down         ; Salta para descida se menor ou igual
-    loadn r0, #0                ; Carrega valor 0 em r0
-    store dino_jumping, r0      ; Define dinossauro como não pulando
-    store dino_jump_count, r0   ; Zera contador de pulo
-    loadn r0, #27               ; Carrega linha do chão em r0
-    store dino_y, r0            ; Define dinossauro no chão
-    loadn r0, #1090             ; Carrega posição absoluta em r0
-    store dino_pos, r0          ; Define posição absoluta do dinossauro
-    jmp end_update_dino_jump    ; Salta para fim da função
+    load  r0, dino_jumping
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   end_update_dino_jump
+    load  r0, dino_jump_count
+    inc   r0
+    store dino_jump_count, r0
+    loadn r1, #6
+    cmp   r0, r1
+    jle   dino_going_up
+    loadn r1, #12
+    cmp   r0, r1
+    jle   dino_going_down
+    loadn r0, #0
+    store dino_jumping, r0
+    store dino_jump_count, r0
+    loadn r0, #21
+    store dino_y, r0
+    loadn r0, #850
+    store dino_pos, r0
+    jmp   end_update_dino_jump
 
 dino_going_up:
-    loadn r1, #24               ; Carrega linha 24 em r1 (altura máxima)
-    store dino_y, r1            ; Define nova altura do dinossauro
-    loadn r0, #970              ; Carrega posição absoluta em r0 (24*40+10)
-    store dino_pos, r0          ; Define nova posição absoluta
-    jmp end_update_dino_jump    ; Salta para fim da função
+    loadn r1, #18
+    store dino_y, r1
+    loadn r0, #730
+    store dino_pos, r0
+    jmp   end_update_dino_jump
 
 dino_going_down:
-    loadn r1, #25               ; Carrega linha 25 em r1 (altura intermediária)
-    store dino_y, r1            ; Define nova altura do dinossauro
-    loadn r0, #1010             ; Carrega posição absoluta em r0 (25*40+10)
-    store dino_pos, r0          ; Define nova posição absoluta
+    loadn r1, #19
+    store dino_y, r1
+    loadn r0, #770
+    store dino_pos, r0
 
 end_update_dino_jump:
     pop r2
@@ -301,185 +316,359 @@ end_update_dino_jump:
     rts
 
 ; ============================================================================
-; FUNÇÃO DE ATUALIZAÇÃO DOS OBSTÁCULOS
+; ATUALIZAÇÃO DE OBSTÁCULOS
 ; ============================================================================
 
 update_obstacles:
+    call update_obstacle1
+    call update_obstacle2
+    call update_obstacle3
+    rts
+
+; obstáculo 1 (60f)
+update_obstacle1:
     push r0
     push r1
     push r2
-    load r0, obstacle_active    ; Carrega flag de obstáculo ativo em r0
-    loadn r1, #0                ; Carrega valor 0 em r1
-    cmp r0, r1                  ; Compara flag com 0 (inativo)
-    jeq try_create_obstacle     ; Salta para criar se inativo
-    load r0, obstacle_x         ; Carrega posição X do obstáculo em r0
-    load r1, obstacle_speed     ; Carrega velocidade em r1
-    sub r0, r0, r1              ; Subtrai velocidade da posição X
-    loadn r1, #0                ; Carrega valor 0 em r1
-    cmp r0, r1                  ; Compara posição X com 0
-    jle deactivate_obstacle     ; Salta para desativar se saiu da tela
-    store obstacle_x, r0        ; Armazena nova posição X
-    jmp end_update_obstacles    ; Salta para fim da função
+    load  r0, obstacle_active1
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   try_create_obstacle1
+    load  r0, obstacle_x1
+    load  r1, obstacle_speed
+    sub   r0, r0, r1
+    jle   deactivate_obstacle1    ; X≤0?
+    store obstacle_x1, r0         ; só grava se X>0
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
 
-deactivate_obstacle:
-    loadn r0, #0                ; Carrega valor 0 em r0
-    store obstacle_x, r0        ; Zera posição X do obstáculo
-    store obstacle_active, r0   ; Define obstáculo como inativo
-    store obstacle_timer, r0    ; Zera timer de obstáculos
-    jmp end_update_obstacles    ; Salta para fim da função
+deactivate_obstacle1:
+    loadn r0, #0
+    store obstacle_active1, r0
+    store obstacle_x1, r0
+    store obstacle_timer1, r0
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
 
-try_create_obstacle:
-    load r0, obstacle_timer     ; Carrega timer de obstáculos em r0
-    inc r0                      ; Incrementa timer
-    store obstacle_timer, r0    ; Armazena novo valor do timer
-    loadn r1, #60               ; Carrega valor 60 em r1 (intervalo)
-    cmp r0, r1                  ; Compara timer com 60
-    jne end_update_obstacles    ; Salta para fim se não chegou no intervalo
-    loadn r0, #1                ; Carrega valor 1 em r0
-    store obstacle_active, r0   ; Define obstáculo como ativo
-    loadn r0, #39               ; Carrega posição X inicial em r0
-    store obstacle_x, r0        ; Define posição X do obstáculo
-    loadn r0, #0                ; Carrega valor 0 em r0
-    store obstacle_timer, r0    ; Zera timer de obstáculos
+try_create_obstacle1:
+    load  r0, obstacle_timer1
+    inc   r0
+    store obstacle_timer1, r0
+    loadn r1, #60
+    cmp   r0, r1
+    jne   skip_ob1
+    loadn r0, #1
+    store obstacle_active1, r0
+    loadn r0, #39
+    store obstacle_x1, r0
+    loadn r0, #0
+    store obstacle_timer1, r0
+skip_ob1:
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
 
-end_update_obstacles:
-    pop r2
+; obstáculo 2 (90f)
+update_obstacle2:
+    push r0
+    push r1
+    push r2
+    load  r0, obstacle_active2
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   try_create_obstacle2
+    load  r0, obstacle_x2
+    load  r1, obstacle_speed
+    sub   r0, r0, r1
+    jle   deactivate_obstacle2
+    store obstacle_x2, r0
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
+
+deactivate_obstacle2:
+    loadn r0, #0
+    store obstacle_active2, r0
+    store obstacle_x2, r0
+    store obstacle_timer2, r0
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
+
+try_create_obstacle2:
+    load  r0, obstacle_timer2
+    inc   r0
+    store obstacle_timer2, r0
+    loadn r1, #90
+    cmp   r0, r1
+    jne   skip_ob2
+    loadn r0, #1
+    store obstacle_active2, r0
+    loadn r0, #39
+    store obstacle_x2, r0
+    loadn r0, #0
+    store obstacle_timer2, r0
+skip_ob2:
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
+
+; obstáculo 3 (120f)
+update_obstacle3:
+    push r0
+    push r1
+    push r2
+    load  r0, obstacle_active3
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   try_create_obstacle3
+    load  r0, obstacle_x3
+    load  r1, obstacle_speed
+    sub   r0, r0, r1
+    jle   deactivate_obstacle3
+    store obstacle_x3, r0
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
+
+deactivate_obstacle3:
+    loadn r0, #0
+    store obstacle_active3, r0
+    store obstacle_x3, r0
+    store obstacle_timer3, r0
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
+
+try_create_obstacle3:
+    load  r0, obstacle_timer3
+    inc   r0
+    store obstacle_timer3, r0
+    loadn r1, #120
+    cmp   r0, r1
+    jne   skip_ob3
+    loadn r0, #1
+    store obstacle_active3, r0
+    loadn r0, #39
+    store obstacle_x3, r0
+    loadn r0, #0
+    store obstacle_timer3, r0
+skip_ob3:
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
+
+; ============================================================================
+; DETECÇÃO DE COLISÃO
+; ============================================================================
+
+check_collisions:
+    push r0
+    push r1
+    load  r0, dino_y
+    loadn r1, #21
+    cmp   r0, r1
+    jne   end_check_collisions
+
+    load  r0, obstacle_active1
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   check2
+    load  r0, obstacle_x1
+    loadn r1, #10
+    cmp   r0, r1
+    jeq   collision_trigger
+
+check2:
+    load  r0, obstacle_active2
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   check3
+    load  r0, obstacle_x2
+    cmp   r0, r1
+    jeq   collision_trigger
+
+check3:
+    load  r0, obstacle_active3
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   end_check_collisions
+    load  r0, obstacle_x3
+    cmp   r0, r1
+    jeq   collision_trigger
+    jmp   end_check_collisions
+
+collision_trigger:
+    loadn r0, #1
+    store game_over, r0
+
+end_check_collisions:
     pop r1
     pop r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE DETECÇÃO DE COLISÕES
-; ============================================================================
-
-check_collisions:
-    push r0                     ; Salva r0 na pilha
-    push r1                     ; Salva r1 na pilha
-
-    ; 1. O dinossauro está no chão?
-    load r0, dino_y             ; Carrega a coordenada Y (linha) do dinossauro
-    loadn r1, #27               ; Carrega o valor da linha do chão (27)
-    cmp r0, r1                  ; Compara a posição do dinossauro com a do chão
-    jne end_check_collisions    ; Se não estiver no chão (r0 != r1), salta para o fim
-
-    ; 2. Existe um obstáculo ativo na tela?
-    load r0, obstacle_active    ; Carrega a flag que indica se o obstáculo está ativo
-    loadn r1, #0                ; Carrega 0 para comparação
-    cmp r0, r1                  ; Compara se a flag é 0 (inativo)
-    jeq end_check_collisions    ; Se estiver inativo (r0 == r1), salta para o fim
-
-    ; 3. O obstáculo está na mesma coluna do dinossauro?
-    load r0, obstacle_x         ; Carrega a coordenada X (coluna) do obstáculo
-    loadn r1, #10               ; Carrega a coordenada X fixa do dinossauro
-    cmp r0, r1                  ; Compara a posição de ambos
-    jne end_check_collisions    ; Se não estiverem na mesma coluna, salta para o fim
-
-    ; Se o código chegou até aqui, todas as condições são verdadeiras: COLISÃO!
-    loadn r0, #1                ; Carrega 1 (verdadeiro) em r0
-    store game_over, r0         ; Atualiza a variável game_over, terminando o jogo
-
-end_check_collisions:
-    pop r1                      ; Restaura r1 da pilha
-    pop r0                      ; Restaura r0 da pilha
-    rts                         ; Retorna da função
-
-; ============================================================================
-; FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO
+; RENDERIZAÇÃO
 ; ============================================================================
 
 render_game:
     push r0
-    load r0, game_start_delay   ; Carrega contador de atraso em r0
-    loadn r1, #0                ; Carrega valor 0 em r1
-    cmp r0, r1                  ; Compara atraso com 0
-    jne show_prepare            ; Salta para mostrar preparação se há atraso
-    call draw_ground            ; Chama função para desenhar chão
-    call draw_dino              ; Chama função para desenhar dinossauro
-    call draw_obstacles         ; Chama função para desenhar obstáculos
-    call draw_timer             ; Chama função para desenhar timer
-    call draw_speed_indicator   ; Chama função para desenhar indicador de velocidade
-    jmp end_render_game         ; Salta para fim da função
+    load  r0, game_start_delay
+    loadn r1, #0
+    cmp   r0, r1
+    jne   show_prepare
+    call  draw_ground
+    call  draw_dino
+    call  draw_obstacles
+    call  draw_timer
+    call  draw_speed_indicator
+    jmp   end_render_game
 
 show_prepare:
-    call draw_ground            ; Chama função para desenhar chão
-    call draw_prepare           ; Chama função para desenhar mensagem de preparação
+    call draw_ground
+    call draw_prepare
 
 end_render_game:
     pop r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE DESENHO DO DINOSSAURO
+; DESENHO DO DINOSSAURO
 ; ============================================================================
 
 draw_dino:
     push r0
     push r1
     push r2
-    load r0, dino_pos           ; Carrega posição absoluta do dinossauro em r0
-    loadn r1, #'D'              ; Carrega código ASCII do caractere 'D' em r1
-    loadn r2, #1024             ; Carrega código de cor verde em r2
-    add r1, r1, r2              ; Adiciona cor ao caractere
+    load  r0, dino_pos
+    loadn r1, #'D'
+    loadn r2, #1024
+    add   r1, r1, r2
     outchar r1, r0
-    pop r2
-    pop r1
-    pop r0
+    pop   r2
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE DESENHO DOS OBSTÁCULOS
+; DESENHO DOS OBSTÁCULOS
 ; ============================================================================
 
 draw_obstacles:
+    call draw_obstacle1
+    call draw_obstacle2
+    call draw_obstacle3
+    rts
+
+draw_obstacle1:
     push r0
     push r1
     push r2
-    push r3
-    load r0, obstacle_active    ; Carrega flag de obstáculo ativo em r0
-    loadn r1, #0                ; Carrega valor 0 em r1
-    cmp r0, r1                  ; Compara flag com 0 (inativo)
-    jeq end_draw_obstacles      ; Salta para fim se obstáculo inativo
-    load r1, obstacle_x         ; Carrega posição X do obstáculo em r1
-    loadn r0, #1080             ; Carrega base da linha 27 em r0 (27*40=1080)
-    add r0, r0, r1              ; Adiciona posição X à base da linha
-    loadn r1, #'|'              ; Carrega código ASCII do caractere '|' em r1
-    loadn r2, #2048             ; Carrega código de cor vermelha em r2
-    add r1, r1, r2              ; Adiciona cor ao caractere
+    load  r0, obstacle_active1
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   end_draw_ob1
+    load  r1, obstacle_x1
+    loadn r2, #0
+    cmp   r1, r2
+    jle   end_draw_ob1
+    loadn r0, #840           ; 21×40
+    add   r0, r0, r1
+    loadn r1, #'|'
+    loadn r2, #2048
+    add   r1, r1, r2
     outchar r1, r0
+end_draw_ob1:
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
 
-end_draw_obstacles:
-    pop r3
-    pop r2
-    pop r1
-    pop r0
+draw_obstacle2:
+    push r0
+    push r1
+    push r2
+    load  r0, obstacle_active2
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   end_draw_ob2
+    load  r1, obstacle_x2
+    loadn r2, #0
+    cmp   r1, r2
+    jle   end_draw_ob2
+    loadn r0, #840
+    add   r0, r0, r1
+    loadn r1, #'|'
+    loadn r2, #2048
+    add   r1, r1, r2
+    outchar r1, r0
+end_draw_ob2:
+    pop   r2
+    pop   r1
+    pop   r0
+    rts
+
+draw_obstacle3:
+    push r0
+    push r1
+    push r2
+    load  r0, obstacle_active3
+    loadn r1, #0
+    cmp   r0, r1
+    jeq   end_draw_ob3
+    load  r1, obstacle_x3
+    loadn r2, #0
+    cmp   r1, r2
+    jle   end_draw_ob3
+    loadn r0, #840
+    add   r0, r0, r1
+    loadn r1, #'|'
+    loadn r2, #2048
+    add   r1, r1, r2
+    outchar r1, r0
+end_draw_ob3:
+    pop   r2
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE DESENHO DO INDICADOR DE VELOCIDADE
+; INDICADOR DE VELOCIDADE
 ; ============================================================================
 
 draw_speed_indicator:
     push r0
     push r1
     push r2
-    loadn r0, #30               ; Carrega posição inicial em r0 (coluna 30)
-    loadn r1, #'V'              ; Carrega código ASCII do caractere 'V' em r1
+    loadn r0, #30
+    loadn r1, #'V'
     outchar r1, r0
-    inc r0                      ; Incrementa posição para próximo caractere
-    loadn r1, #':'              ; Carrega código ASCII do caractere ':' em r1
+    inc   r0
+    loadn r1, #':'
     outchar r1, r0
-    inc r0                      ; Incrementa posição para próximo caractere
-    load r1, obstacle_speed     ; Carrega velocidade atual em r1
-    loadn r2, #'0'              ; Carrega código ASCII do caractere '0' em r2
-    add r1, r1, r2              ; Converte velocidade para código ASCII
+    inc   r0
+    load  r1, obstacle_speed
+    loadn r2, #'0'
+    add   r1, r1, r2
     outchar r1, r0
-    pop r2
-    pop r1
-    pop r0
+    pop   r2
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE DESENHO DO CHÃO
+; DESENHO DO CHÃO
 ; ============================================================================
 
 draw_ground:
@@ -487,102 +676,101 @@ draw_ground:
     push r1
     push r2
     push r3
-    loadn r0, #1120             ; Carrega posição inicial da linha 28 em r0
-    loadn r1, #40               ; Carrega largura da tela em r1 (40 colunas)
-    loadn r2, #'='              ; Carrega código ASCII do caractere '=' em r2
-    loadn r3, #512              ; Carrega código de cor marrom em r3
-    add r2, r2, r3              ; Adiciona cor ao caractere
-
-draw_ground_loop:
-    outchar r2, r0              ; Escreve caractere colorido na posição atual
-    inc r0                      ; Incrementa posição para próxima coluna
-    dec r1                      ; Decrementa contador de colunas
-    loadn r3, #0                ; Carrega valor 0 em r3 para comparação
-    cmp r1, r3                  ; Compara contador com 0
-    jne draw_ground_loop        ; Continua loop se ainda há colunas
-    pop r3
-    pop r2
-    pop r1
-    pop r0
+    loadn r0, #880           ; 22×40
+    loadn r1, #40
+    loadn r2, #'='
+    loadn r3, #512
+    add   r2, r2, r3
+dg_loop:
+    outchar r2, r0
+    inc   r0
+    dec   r1
+    loadn r3, #0
+    cmp   r1, r3
+    jne   dg_loop
+    pop   r3
+    pop   r2
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE DESENHO DO TIMER
+; DESENHO DO TIMER
 ; ============================================================================
 
 draw_timer:
     push r0
     push r1
     push r2
-    loadn r0, #0                ; Carrega posição inicial em r0 (canto superior esquerdo)
-    loadn r1, #timer_msg        ; Carrega endereço da string "TEMPO: " em r1
-    call print_string           ; Chama função para imprimir string
-    loadn r0, #7                ; Carrega posição após "TEMPO: " em r0
-    load r1, timer_seconds      ; Carrega valor dos segundos em r1
-    call print_number_2digits   ; Chama função para imprimir número com 2 dígitos
-    pop r2
-    pop r1
-    pop r0
+    loadn r0, #0
+    loadn r1, #timer_msg
+    call  print_string
+    loadn r0, #7
+    load  r1, timer_seconds
+    call  print_number_2digits
+    pop   r2
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE DESENHO DA MENSAGEM DE PREPARAÇÃO
+; “PREPARE-SE”
 ; ============================================================================
 
 draw_prepare:
     push r0
     push r1
-    loadn r0, #600              ; Carrega posição central da tela em r0
-    loadn r1, #prepare_msg      ; Carrega endereço da string "PREPARE-SE" em r1
-    call print_string           ; Chama função para imprimir string
-    pop r1
-    pop r0
+    loadn r0, #480           ; linha 12
+    loadn r1, #prepare_msg
+    call  print_string
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE DESENHO DA TELA DE GAME OVER
+; GAME OVER
 ; ============================================================================
 
 draw_game_over:
     push r0
     push r1
-    loadn r0, #580              ; Carrega posição central em r0
-    loadn r1, #game_over_msg    ; Carrega endereço da string "GAME OVER" em r1
-    call print_string           ; Chama função para imprimir string
-    loadn r0, #620              ; Carrega posição da linha seguinte em r0
-    loadn r1, #timer_msg        ; Carrega endereço da string "TEMPO: " em r1
-    call print_string           ; Chama função para imprimir string
-    loadn r0, #627              ; Carrega posição após "TEMPO: " em r0
-    load r1, timer_seconds      ; Carrega segundos alcançados em r1
-    call print_number_2digits   ; Chama função para imprimir número
-    pop r1
-    pop r0
+    loadn r0, #560           ; linha 14
+    loadn r1, #game_over_msg
+    call  print_string
+    loadn r0, #600           ; linha 15
+    loadn r1, #timer_msg
+    call  print_string
+    loadn r0, #607
+    load  r1, timer_seconds
+    call  print_number_2digits
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO DE DESENHO DA TELA DE VITÓRIA
+; VITÓRIA
 ; ============================================================================
 
 draw_game_won:
     push r0
     push r1
     push r2
-    loadn r0, #580              ; Carrega posição central em r0
-    loadn r1, #game_won_msg     ; Carrega endereço da string "VITORIA!" em r1
-    call print_string_colored   ; Chama função para imprimir string colorida
-    loadn r0, #620              ; Carrega posição da linha seguinte em r0
-    loadn r1, #timer_msg        ; Carrega endereço da string "TEMPO: " em r1
-    call print_string           ; Chama função para imprimir string
-    loadn r0, #627              ; Carrega posição após "TEMPO: " em r0
-    loadn r1, #99               ; Carrega valor 99 em r1 (tempo de vitória)
-    call print_number_2digits   ; Chama função para imprimir número
-    pop r2
-    pop r1
-    pop r0
+    loadn r0, #560
+    loadn r1, #game_won_msg
+    call  print_string_colored
+    loadn r0, #600
+    loadn r1, #timer_msg
+    call  print_string
+    loadn r0, #607
+    loadn r1, #99
+    call  print_number_2digits
+    pop   r2
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO AUXILIAR: IMPRESSÃO DE STRING
+; AUXILIAR: PRINT STRING
 ; ============================================================================
 
 print_string:
@@ -590,18 +778,16 @@ print_string:
     push r1
     push r2
     push r3
-    loadn r3, #0                ; Carrega terminador nulo em r3
-
-print_string_loop:
-    loadi r2, r1                ; Carrega caractere da posição apontada por r1
-    cmp r2, r3                  ; Compara caractere com terminador nulo
-    jeq end_print_string        ; Salta para fim se encontrou terminador
+    loadn r3, #0
+ps_loop:
+    loadi r2, r1
+    cmp   r2, r3
+    jeq   ps_end
     outchar r2, r0
-    inc r0                      ; Incrementa posição na tela
-    inc r1                      ; Incrementa posição na string
-    jmp print_string_loop       ; Continua loop de impressão
-
-end_print_string:
+    inc   r0
+    inc   r1
+    jmp   ps_loop
+ps_end:
     pop r3
     pop r2
     pop r1
@@ -609,7 +795,7 @@ end_print_string:
     rts
 
 ; ============================================================================
-; FUNÇÃO AUXILIAR: IMPRESSÃO DE STRING COLORIDA
+; AUXILIAR: PRINT STRING COLORIDA
 ; ============================================================================
 
 print_string_colored:
@@ -618,20 +804,18 @@ print_string_colored:
     push r2
     push r3
     push r4
-    loadn r3, #0                ; Carrega terminador nulo em r3
-    loadn r4, #3072             ; Carrega código de cor amarela em r4
-
-print_string_colored_loop:
-    loadi r2, r1                ; Carrega caractere da posição apontada por r1
-    cmp r2, r3                  ; Compara caractere com terminador nulo
-    jeq end_print_string_colored ; Salta para fim se encontrou terminador
-    add r2, r2, r4              ; Adiciona código de cor ao caractere
+    loadn r3, #0
+    loadn r4, #3072
+psc_loop:
+    loadi r2, r1
+    cmp   r2, r3
+    jeq   psc_end
+    add   r2, r2, r4
     outchar r2, r0
-    inc r0                      ; Incrementa posição na tela
-    inc r1                      ; Incrementa posição na string
-    jmp print_string_colored_loop ; Continua loop de impressão
-
-end_print_string_colored:
+    inc   r0
+    inc   r1
+    jmp   psc_loop
+psc_end:
     pop r4
     pop r3
     pop r2
@@ -640,7 +824,7 @@ end_print_string_colored:
     rts
 
 ; ============================================================================
-; FUNÇÃO AUXILIAR: IMPRESSÃO DE NÚMERO COM 2 DÍGITOS
+; AUXILIAR: PRINT 2-DÍGITOS
 ; ============================================================================
 
 print_number_2digits:
@@ -648,25 +832,25 @@ print_number_2digits:
     push r1
     push r2
     push r3
-    loadn r2, #10               ; Carrega divisor 10 em r2
-    div r3, r1, r2              ; Calcula dezena (r3 = r1 ÷ 10)
-    loadn r2, #'0'              ; Carrega código ASCII do '0' em r2
-    add r3, r3, r2              ; Converte dezena para código ASCII
+    loadn r2, #10
+    div   r3, r1, r2
+    loadn r2, #'0'
+    add   r3, r3, r2
     outchar r3, r0
-    inc r0                      ; Incrementa posição para próximo dígito
-    loadn r2, #10               ; Carrega divisor 10 em r2
-    mod r3, r1, r2              ; Calcula unidade (r3 = r1 % 10)
-    loadn r2, #'0'              ; Carrega código ASCII do '0' em r2
-    add r3, r3, r2              ; Converte unidade para código ASCII
+    inc   r0
+    loadn r2, #10
+    mod   r3, r1, r2
+    loadn r2, #'0'
+    add   r3, r3, r2
     outchar r3, r0
-    pop r3
-    pop r2
-    pop r1
-    pop r0
+    pop   r3
+    pop   r2
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO AUXILIAR: LIMPEZA DA TELA
+; AUXILIAR: CLEAR SCREEN (960 posições)
 ; ============================================================================
 
 clear_screen:
@@ -674,52 +858,49 @@ clear_screen:
     push r1
     push r2
     push r3
-    loadn r0, #0                ; Carrega posição inicial em r0 (canto superior esquerdo)
-    loadn r1, #' '              ; Carrega código ASCII do espaço em r1
-    loadn r2, #1200             ; Carrega total de posições na tela em r2
-
-clear_screen_loop:
+    loadn r0, #0
+    loadn r1, #' '
+    loadn r2, #960
+cs_loop:
     outchar r1, r0
-    inc r0                      ; Incrementa posição na tela
-    dec r2                      ; Decrementa contador de posições
-    loadn r3, #0                ; Carrega valor 0 em r3 para comparação
-    cmp r2, r3                  ; Compara contador com 0
-    jne clear_screen_loop       ; Continua loop se ainda há posições
-    pop r3
-    pop r2
-    pop r1
-    pop r0
+    inc   r0
+    dec   r2
+    loadn r3, #0
+    cmp   r2, r3
+    jne   cs_loop
+    pop   r3
+    pop   r2
+    pop   r1
+    pop   r0
     rts
 
 ; ============================================================================
-; FUNÇÃO AUXILIAR: ESPERA POR ENTRADA DO USUÁRIO
+; AUXILIAR: INPUT WAIT
 ; ============================================================================
 
 input_wait:
     push r1
-
-input_wait_loop:
-    inchar r0                   ; Lê caractere do teclado para r0
-    loadn r1, #255              ; Carrega código "nenhuma tecla" em r1
-    cmp r0, r1                  ; Compara tecla lida com código "nenhuma tecla"
-    jeq input_wait_loop         ; Continua esperando se nenhuma tecla pressionada
+iw_loop:
+    inchar r0
+    loadn r1, #255
+    cmp   r0, r1
+    jeq   iw_loop
     pop r1
     rts
 
 ; ============================================================================
-; FUNÇÃO AUXILIAR: DELAY (CONTROLE DE VELOCIDADE)
+; AUXILIAR: DELAY
 ; ============================================================================
 
 delay:
     push r0
     push r1
-    loadn r0, #1000             ; Carrega número de iterações para delay em r0
-
-delay_loop:
-    dec r0                      ; Decrementa contador de delay
-    loadn r1, #0                ; Carrega valor 0 em r1 para comparação
-    cmp r0, r1                  ; Compara contador com 0
-    jne delay_loop              ; Continua loop se contador não é zero
-    pop r1
-    pop r0
+    loadn r0, #1000
+dl_loop:
+    dec   r0
+    loadn r1, #0
+    cmp   r0, r1
+    jne   dl_loop
+    pop   r1
+    pop   r0
     rts
